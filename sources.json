@@ -1,0 +1,7 @@
+{
+  "sources":{
+    "https://paulgraham.com/articles.html": "blog",
+    "https://blog.samaltman.com/": "blog",
+    "https://www.youtube.com/@ycombinator": "yt channel"
+  }
+}
