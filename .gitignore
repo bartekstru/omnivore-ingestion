@@ -1,0 +1,5 @@
+.venv
+.env
+sources.json
+ingested.json
+__pycache__
