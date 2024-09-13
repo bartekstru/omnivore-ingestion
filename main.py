@@ -9,7 +9,6 @@ import os
 import requests
 import uuid
 
-
 load_dotenv()
 YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 omnivoreql_client = OmnivoreQL(os.getenv('OMNIVORE_API_KEY'))
@@ -40,8 +39,6 @@ def ingest_on_source_change(bucket_name: str, file_name: str):
         for source_url, metadata in sources.items():
             all_ingested[source_url] = all_ingested[source_url] if source_url in all_ingested else []
             successfully_ingested = ingest_for_source(source_url, metadata, all_ingested[source_url])
-            print(all_ingested)
-            print(successfully_ingested)
             all_ingested[source_url] += successfully_ingested
             print(f"Total of {len(all_ingested[source_url])} items ingested for {source_url}")
 
@@ -121,14 +118,16 @@ def ingest_for_blog(source_url: str, source_type: str) -> tuple[list, list]:
 
 def ingest_to_omnivore(items: list, labels: list) -> list:
     succesfully_ingested = []
-    for x in items:
+    for item in items:
         try:
-            response = omnivoreql_client.save_url(x, labels, client_request_id=str(uuid.uuid4()))
-            print(response)
+            response = omnivoreql_client.save_url(item, labels, client_request_id=str(uuid.uuid1()))
         except Exception as e:
-            print(str(e))
+            print(e)
             continue
-        succesfully_ingested.append(x)
+
+        if "errorCodes" not in response['saveUrl']:
+            succesfully_ingested.append(item)
+
     failed = [item for item in items if item not in succesfully_ingested]
     print(f"Ingested {len(succesfully_ingested)} new items into Omnivore. {len(failed)} items failed.")
     return succesfully_ingested
