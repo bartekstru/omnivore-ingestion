@@ -1,5 +1,8 @@
 .venv
 .env
 sources.json
+s_blog_only.json
+s_yt_only.json
 ingested.json
 __pycache__
+todo.txt
