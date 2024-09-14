@@ -15,8 +15,14 @@ OMNIVORE_API_KEY=os.getenv("OMNIVORE_API_KEY")
 YOUTUBE_API_KEY=os.getenv("YOUTUBE_API_KEY")
 omnivoreql_client = OmnivoreQL(OMNIVORE_API_KEY)
 
+@functions_framework.http
+def omnivore_ingest_on_schedule(request):
+    ingest_on_source_change("omnivore-ingestion-data", "sources.json")
+    return "Success"
+
+
 @functions_framework.cloud_event
-def omnivore_ingest(cloud_event: CloudEvent) -> tuple:
+def omnivore_ingest_on_source_change(cloud_event: CloudEvent):
     """This function is triggered by a change in a storage bucket and logs the contents of sources.json.
 
     Args:
