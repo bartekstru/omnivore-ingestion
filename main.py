@@ -9,12 +9,14 @@ import os
 import requests
 import uuid
 
-load_dotenv()
-YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
-omnivoreql_client = OmnivoreQL(os.getenv('OMNIVORE_API_KEY'))
+# load_dotenv()
+
+OMNIVORE_API_KEY=os.getenv("OMNIVORE_API_KEY")
+YOUTUBE_API_KEY=os.getenv("YOUTUBE_API_KEY")
+omnivoreql_client = OmnivoreQL(OMNIVORE_API_KEY)
 
 @functions_framework.cloud_event
-def hello_gcs(cloud_event: CloudEvent) -> tuple:
+def omnivore_ingest(cloud_event: CloudEvent) -> tuple:
     """This function is triggered by a change in a storage bucket and logs the contents of sources.json.
 
     Args:
@@ -28,7 +30,6 @@ def hello_gcs(cloud_event: CloudEvent) -> tuple:
 
     if file_name == "sources.json":
         ingest_on_source_change(data["bucket"], file_name)
-
 
 def ingest_on_source_change(bucket_name: str, file_name: str):
         print("Detected change in sources.")
@@ -121,6 +122,7 @@ def ingest_to_omnivore(items: list, labels: list) -> list:
     for item in items:
         try:
             response = omnivoreql_client.save_url(item, labels, client_request_id=str(uuid.uuid1()))
+            print(response)
         except Exception as e:
             print(e)
             continue
