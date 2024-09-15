@@ -1,0 +1,7 @@
+{
+    "BUCKET_NAME": "omnivore-ingestion-data",
+    "SOURCES_FILE_NAME": "sources.json",
+    "INGESTED_FILE_NAME": "ingested.json",
+    "YOUTUBE_API_URL": "https://www.googleapis.com/youtube/v3",
+    "PUBSUB_EVENT_TYPE": "google.cloud.pubsub.topic.v1.messagePublished"
+}

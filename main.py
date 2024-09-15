@@ -9,14 +9,27 @@ import os
 import requests
 import uuid
 import logging
+import json
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
-# load_dotenv()
+# Load environment variables
+load_dotenv()
 
-OMNIVORE_API_KEY=os.getenv("OMNIVORE_API_KEY")
-YOUTUBE_API_KEY=os.getenv("YOUTUBE_API_KEY")
+# Load configuration from JSON file
+with open('config.json') as config_file:
+    config = json.load(config_file)
+
+# Constants from the environment variables and JSON configuration
+OMNIVORE_API_KEY = os.getenv("OMNIVORE_API_KEY")
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+BUCKET_NAME = config["BUCKET_NAME"]
+SOURCES_FILE_NAME = config["SOURCES_FILE_NAME"]
+INGESTED_FILE_NAME = config["INGESTED_FILE_NAME"]
+YOUTUBE_API_URL = config["YOUTUBE_API_URL"]
+PUBSUB_EVENT_TYPE = config["PUBSUB_EVENT_TYPE"]
+
 omnivoreql_client = OmnivoreQL(OMNIVORE_API_KEY)
 
 @functions_framework.cloud_event
@@ -27,27 +40,27 @@ def omnivore_ingest_on_source_change(cloud_event: CloudEvent):
     Args:
         cloud_event: The CloudEvent that triggered this function.
     """
-    if cloud_event._attributes.get("subject", None) == "objects/sources.json" or cloud_event._attributes.get("type") == 'google.cloud.pubsub.topic.v1.messagePublished':
+    if cloud_event._attributes.get("subject", None) == f"objects/{SOURCES_FILE_NAME}" or cloud_event._attributes.get("type") == PUBSUB_EVENT_TYPE:
         logging.info(f"Processing cloud event: {cloud_event}")
-        ingest_on_source_change("omnivore-ingestion-data", "sources.json")
+        ingest_on_source_change(BUCKET_NAME, SOURCES_FILE_NAME)
     else:
         logging.info(f"Ignoring cloud event: {cloud_event}")
 
 def ingest_on_source_change(bucket_name: str, file_name: str):
-        logging.info("Detected change in sources.")
+    logging.info("Detected change in sources.")
 
-        sources = read_file_from_gcs(bucket_name, file_name)
-        all_ingested = read_file_from_gcs(bucket_name, "ingested.json")
+    sources = read_file_from_gcs(bucket_name, file_name)
+    all_ingested = read_file_from_gcs(bucket_name, INGESTED_FILE_NAME)
 
-        for source_url, metadata in sources.items():
-            all_ingested[source_url] = all_ingested[source_url] if source_url in all_ingested else []
-            successfully_ingested = ingest_for_source(source_url, metadata, all_ingested[source_url])
-            all_ingested[source_url] += successfully_ingested
-            logging.info(f"Total of {len(all_ingested[source_url])} items ingested for {source_url}")
+    for source_url, metadata in sources.items():
+        all_ingested[source_url] = all_ingested[source_url] if source_url in all_ingested else []
+        successfully_ingested = ingest_for_source(source_url, metadata, all_ingested[source_url])
+        all_ingested[source_url] += successfully_ingested
+        logging.info(f"Total of {len(all_ingested[source_url])} items ingested for {source_url}")
 
-        write_file_to_gcs(all_ingested, bucket_name, "ingested.json")
+    write_file_to_gcs(all_ingested, bucket_name, INGESTED_FILE_NAME)
 
-        logging.info("Finished ingestion afer sources update.")
+    logging.info("Finished ingestion afer sources update.")
 
 def ingest_for_source(source_url: str, source_metadata: dict, ingested_per_source: list) -> list:
     source_type = source_metadata['type']
@@ -59,7 +72,6 @@ def ingest_for_source(source_url: str, source_metadata: dict, ingested_per_sourc
 
     new_items = [item for item in all_items_per_source if item not in ingested_per_source]
 
-    # ingest that difference into omnivovre and mark them as visited
     succesfully_ingested = ingest_to_omnivore(new_items, source_labels + extra_source_labels)
     
     return succesfully_ingested
@@ -80,8 +92,7 @@ def ingest_for_yt_playlist(source_url: str, source_type: str) -> tuple[list, lis
     base_video_url = 'https://www.youtube.com/watch?v='
     source_tags = [urlparse(source_url).netloc, source_type]
 
-    # Fetch playlist items
-    youtube_api_url = f'https://www.googleapis.com/youtube/v3/playlistItems?key={YOUTUBE_API_KEY}&playlistId={playlist_id}&part=snippet&maxResults=20'
+    youtube_api_url = f'{YOUTUBE_API_URL}/playlistItems?key={YOUTUBE_API_KEY}&playlistId={playlist_id}&part=snippet&maxResults=20'
     response = requests.get(youtube_api_url)
     video_data = response.json()
     
@@ -91,8 +102,7 @@ def ingest_for_yt_playlist(source_url: str, source_type: str) -> tuple[list, lis
 
     logging.info(f"Retrieved {len(items)} items from playlist: {playlist_id}")
         
-    # Fetch playlist details
-    playlist_details_api_url = f'https://www.googleapis.com/youtube/v3/playlists?key={YOUTUBE_API_KEY}&id={playlist_id}&part=snippet'
+    playlist_details_api_url = f'{YOUTUBE_API_URL}/playlists?key={YOUTUBE_API_KEY}&id={playlist_id}&part=snippet'
     response = requests.get(playlist_details_api_url)
     playlist_details = response.json()
     
