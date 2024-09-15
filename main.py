@@ -8,6 +8,10 @@ import functions_framework
 import os
 import requests
 import uuid
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
 # load_dotenv()
 
@@ -24,13 +28,13 @@ def omnivore_ingest_on_source_change(cloud_event: CloudEvent):
         cloud_event: The CloudEvent that triggered this function.
     """
     if cloud_event._attributes.get("subject", None) == "objects/sources.json" or cloud_event._attributes.get("type") == 'google.cloud.pubsub.topic.v1.messagePublished':
-        print(f"Processing cloud event: {cloud_event}")
+        logging.info(f"Processing cloud event: {cloud_event}")
         ingest_on_source_change("omnivore-ingestion-data", "sources.json")
     else:
-        print(f"Ignoring cloud event: {cloud_event}")
+        logging.info(f"Ignoring cloud event: {cloud_event}")
 
 def ingest_on_source_change(bucket_name: str, file_name: str):
-        print("Detected change in sources.")
+        logging.info("Detected change in sources.")
 
         sources = read_file_from_gcs(bucket_name, file_name)
         all_ingested = read_file_from_gcs(bucket_name, "ingested.json")
@@ -39,17 +43,17 @@ def ingest_on_source_change(bucket_name: str, file_name: str):
             all_ingested[source_url] = all_ingested[source_url] if source_url in all_ingested else []
             successfully_ingested = ingest_for_source(source_url, metadata, all_ingested[source_url])
             all_ingested[source_url] += successfully_ingested
-            print(f"Total of {len(all_ingested[source_url])} items ingested for {source_url}")
+            logging.info(f"Total of {len(all_ingested[source_url])} items ingested for {source_url}")
 
         write_file_to_gcs(all_ingested, bucket_name, "ingested.json")
 
-        print("Finished ingestion afer sources update.")
+        logging.info("Finished ingestion afer sources update.")
 
 def ingest_for_source(source_url: str, source_metadata: dict, ingested_per_source: list) -> list:
     source_type = source_metadata['type']
     source_labels = source_metadata['labels']
 
-    print(f"Processing source: {source_url} of type {source_type} with labels {source_labels}")
+    logging.info(f"Processing source: {source_url} of type {source_type} with labels {source_labels}")
 
     all_items_per_source, extra_source_labels = get_all_items_from_source(source_url, source_type)
 
@@ -67,7 +71,7 @@ def get_all_items_from_source(source_url: str, source_type: str) -> list:
     elif source_type == "Playlist":
         items, source_tags = ingest_for_yt_playlist(source_url, source_type)
 
-    print(f"Number of items in {source_url}: {len(items)}")
+    logging.info(f"Number of items in {source_url}: {len(items)}")
     return items, source_tags
 
 def ingest_for_yt_playlist(source_url: str, source_type: str) -> tuple[list, list]:
@@ -81,24 +85,24 @@ def ingest_for_yt_playlist(source_url: str, source_type: str) -> tuple[list, lis
     response = requests.get(youtube_api_url)
     video_data = response.json()
     
-    print(f"Fetched video data for playlist ID: {playlist_id}")
+    logging.info(f"Fetched video data for playlist ID: {playlist_id}")
 
     items = [base_video_url + item['snippet']['resourceId']['videoId'] for item in video_data.get('items', [])]
 
-    print(f"Retrieved {len(items)} items from playlist: {playlist_id}")
+    logging.info(f"Retrieved {len(items)} items from playlist: {playlist_id}")
         
     # Fetch playlist details
     playlist_details_api_url = f'https://www.googleapis.com/youtube/v3/playlists?key={YOUTUBE_API_KEY}&id={playlist_id}&part=snippet'
     response = requests.get(playlist_details_api_url)
     playlist_details = response.json()
     
-    print(f"Fetched playlist details for playlist ID: {playlist_id}")
+    logging.info(f"Fetched playlist details for playlist ID: {playlist_id}")
 
     if 'items' in playlist_details and len(playlist_details['items']) > 0:
         playlist_name = playlist_details['items'][0]['snippet']['title']
         channel_name = playlist_details['items'][0]['snippet']['channelTitle']
         source_tags += [playlist_name, channel_name]
-        print(f"Playlist Name: {playlist_name}, Channel Name: {channel_name}")
+        logging.info(f"Playlist Name: {playlist_name}, Channel Name: {channel_name}")
     
     return items, source_tags
 
@@ -120,14 +124,14 @@ def ingest_to_omnivore(items: list, labels: list) -> list:
     for item in items:
         try:
             response = omnivoreql_client.save_url(item, labels, client_request_id=str(uuid.uuid1()))
-            print(response)
+            logging.info(response)
         except Exception as e:
-            print(e)
+            logging.error(e)
             continue
 
         if "errorCodes" not in response['saveUrl']:
             succesfully_ingested.append(item)
 
     failed = [item for item in items if item not in succesfully_ingested]
-    print(f"Ingested {len(succesfully_ingested)} new items into Omnivore. {len(failed)} items failed.")
+    logging.info(f"Ingested {len(succesfully_ingested)} new items into Omnivore. {len(failed)} items failed.")
     return succesfully_ingested
