@@ -2,7 +2,7 @@ from cloudevents.http import CloudEvent
 from dotenv import load_dotenv
 from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
-from omnivoreql import OmnivoreQL, CreateLabelInput
+from omnivoreql import OmnivoreQL
 from helper import *
 import functions_framework
 import os
@@ -15,27 +15,19 @@ OMNIVORE_API_KEY=os.getenv("OMNIVORE_API_KEY")
 YOUTUBE_API_KEY=os.getenv("YOUTUBE_API_KEY")
 omnivoreql_client = OmnivoreQL(OMNIVORE_API_KEY)
 
-@functions_framework.http
-def omnivore_ingest_on_schedule(request):
-    ingest_on_source_change("omnivore-ingestion-data", "sources.json")
-    return "Success"
-
-
 @functions_framework.cloud_event
 def omnivore_ingest_on_source_change(cloud_event: CloudEvent):
-    """This function is triggered by a change in a storage bucket and logs the contents of sources.json.
+    """This function is triggered by a change in a storage bucket and ingestes new items to Omnivore.
+    It is also triggered periodically by a job scheduler to check if there are any new items to ingest in the registered sources.
 
     Args:
         cloud_event: The CloudEvent that triggered this function.
-    Returns:
-        The event ID, event type, bucket, name, metageneration, and timeCreated.
     """
-    data = cloud_event.data
-
-    file_name = data["name"]
-
-    if file_name == "sources.json":
-        ingest_on_source_change(data["bucket"], file_name)
+    if cloud_event._attributes.get("subject", None) == "objects/sources.json" or cloud_event._attributes.get("type") == 'google.cloud.pubsub.topic.v1.messagePublished':
+        print(f"Processing cloud event: {cloud_event}")
+        ingest_on_source_change("omnivore-ingestion-data", "sources.json")
+    else:
+        print(f"Ignoring cloud event: {cloud_event}")
 
 def ingest_on_source_change(bucket_name: str, file_name: str):
         print("Detected change in sources.")
