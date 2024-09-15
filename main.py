@@ -57,8 +57,7 @@ def ingest_on_source_change(bucket_name: str, file_name: str):
         successfully_ingested = ingest_for_source(source_url, metadata, all_ingested[source_url])
         all_ingested[source_url] += successfully_ingested
         logging.info(f"Total of {len(all_ingested[source_url])} items ingested for {source_url}")
-
-    write_file_to_gcs(all_ingested, bucket_name, INGESTED_FILE_NAME)
+        write_file_to_gcs(all_ingested, bucket_name, INGESTED_FILE_NAME)
 
     logging.info("Finished ingestion afer sources update.")
 

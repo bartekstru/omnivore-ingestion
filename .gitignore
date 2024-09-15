@@ -7,3 +7,4 @@ ingested.json
 __pycache__
 todo.txt
 deploy_cmd.txt
+sources_update.bat
